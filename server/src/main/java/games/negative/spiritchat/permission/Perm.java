@@ -16,7 +16,9 @@ public class Perm extends Permission {
 
     public static final Perm UPDATE_NOTIFICATIONS = new Perm("updates");
 
-    public static final Perm CHAT_COLORS = new Perm("chat-colors");
+    public static final Perm CHAT_COLORS_MINIMESSAGE = new Perm("chat-colors-minimessage");
+
+    public static final Perm CHAT_COLORS_LEGACY = new Perm("chat-colors-legacy");
 
     public static final Perm CHAT_ITEM = new Perm("chat-item");
 

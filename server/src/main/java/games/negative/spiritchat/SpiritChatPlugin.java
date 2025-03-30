@@ -7,6 +7,7 @@ import games.negative.alumina.config.Configuration;
 import games.negative.alumina.logger.Logs;
 import games.negative.alumina.message.Message;
 import games.negative.alumina.util.Tasks;
+import games.negative.spiritchat.command.CommandChatColor;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import org.bstats.bukkit.Metrics;
@@ -73,6 +74,7 @@ public class SpiritChatPlugin extends AluminaPlugin {
 
         registerListener(new PlayerChatListener());
         registerCommand(new CommandSpiritChat());
+        registerCommand(new CommandChatColor());
     }
 
     @Override

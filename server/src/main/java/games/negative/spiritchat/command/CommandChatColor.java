@@ -3,6 +3,7 @@ package games.negative.spiritchat.command;
 import games.negative.alumina.command.Command;
 import games.negative.alumina.command.CommandContext;
 import games.negative.alumina.command.builder.CommandBuilder;
+import org.bukkit.event.inventory.InventoryType;
 import org.jetbrains.annotations.NotNull;
 import games.negative.spiritchat.SpiritChatPlugin;
 import games.negative.spiritchat.permission.Perm;
@@ -15,7 +16,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import net.kyori.adventure.text.Component;
 
 public class CommandChatColor extends Command implements Listener {
     public CommandChatColor() {
@@ -37,17 +37,17 @@ public class CommandChatColor extends Command implements Listener {
     }
 
     private void openChatColorGUI(Player player) {
-        Inventory gui = Bukkit.createInventory(null, InventoryType.HOPPER, Component.text("Select Chat Color"));
+        Inventory gui = Bukkit.createInventory(null, InventoryType.HOPPER, "Select Chat Color");
 
         // Example items for colors
         ItemStack red = new ItemStack(Material.RED_WOOL);
         ItemMeta redMeta = red.getItemMeta();
-        redMeta.displayName(Component.text("Red"));
+        redMeta.setDisplayName("Red");
         red.setItemMeta(redMeta);
 
         ItemStack blue = new ItemStack(Material.BLUE_WOOL);
         ItemMeta blueMeta = blue.getItemMeta();
-        blueMeta.displayName(Component.text("Blue"));
+        blueMeta.setDisplayName("Blue");
         blue.setItemMeta(blueMeta);
 
         // Add items to the GUI
@@ -60,13 +60,13 @@ public class CommandChatColor extends Command implements Listener {
     // Handle inventory click event to set the chat color
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getView().title().equals(Component.text("Select Chat Color"))) {
+        if (event.getView().getTitle().equals("Select Chat Color")) {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
             ItemStack clickedItem = event.getCurrentItem();
 
             if (clickedItem != null && clickedItem.hasItemMeta()) {
-                String color = clickedItem.getItemMeta().displayName().toString();
+                String color = clickedItem.getItemMeta().getDisplayName();
                 // Set the player's chat color (implementation depends on your plugin)
                 setPlayerChatColor(player, color);
                 player.closeInventory();

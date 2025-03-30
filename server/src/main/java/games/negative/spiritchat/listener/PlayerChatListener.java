@@ -8,6 +8,7 @@ import games.negative.alumina.logger.Logs;
 import games.negative.alumina.message.Message;
 import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
+import me.clip.placeholderapi.libs.kyori.adventure.text.serializer.legacy.LegacyFormat;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -17,6 +18,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
+import org.bukkit.entity.Damageable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -26,6 +28,7 @@ import games.negative.spiritchat.SpiritChatPlugin;
 import games.negative.spiritchat.config.SpiritChatConfig;
 import games.negative.spiritchat.permission.Perm;
 
+import javax.crypto.spec.PSource;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -59,11 +62,19 @@ public class PlayerChatListener implements Listener {
 
             Message.Builder builder = new Message(format).create()
                     .replace("%display-name%", display)
-                    .replace("%username%", source.getName());
+                    .replace("%username%", source.getName())
+                    .replace("%health%", Math.round(source.getHealth() / 2) + "");
 
-            if (source.hasPermission(Perm.CHAT_COLORS)) {
+            if (source.hasPermission(Perm.CHAT_COLORS_MINIMESSAGE)) {
                 TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
                 builder = builder.replace("%message%", MiniMessage.miniMessage().serialize(component));
+            } else {
+                builder = builder.replace("%message%", PlainTextComponentSerializer.plainText().serialize(message));
+            }
+
+            if (source.hasPermission(Perm.CHAT_COLORS_LEGACY)) {
+                TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
+                builder = builder.replace("%message%", LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(component)));
             } else {
                 builder = builder.replace("%message%", PlainTextComponentSerializer.plainText().serialize(message));
             }
@@ -124,9 +135,10 @@ public class PlayerChatListener implements Listener {
 
                 Message.Builder builder = new Message(format).create()
                         .replace("%display-name%", display)
-                        .replace("%username%", source.getName());
+                        .replace("%username%", source.getName())
+                        .replace("%health%", source.getHealth() + "");
 
-                if (source.hasPermission(Perm.CHAT_COLORS)) {
+                if (source.hasPermission(Perm.CHAT_COLORS_MINIMESSAGE)) {
                     TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
                     builder = builder.replace("%message%", MiniMessage.miniMessage().serialize(component));
                 } else {

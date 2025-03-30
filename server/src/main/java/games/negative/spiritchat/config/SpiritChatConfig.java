@@ -99,6 +99,7 @@ public class SpiritChatConfig {
                 "  %display-name% - The player's display-name.",
                 "  %username% - The player's username.",
                 "  %message% - The message sent by the player.",
+                "  %health% - The players health.",
                 "  (+ all PlaceholderAPI placeholders (if enabled))",
         })
         private Map<String, String> groupFormats = Maps.newHashMap(Map.of(
@@ -138,6 +139,13 @@ public class SpiritChatConfig {
                 "",
                 "<color:#2bbce0>SpiritChat</color>",
                 "<white><click:suggest_command:'/spiritchat reload'>/spiritchat reload</click></white> <gray>- Reload the plugin's configurations</gray>",
+                ""
+        );
+
+        final Message infoText = new Message(
+                "",
+                "<color:#2bbce0>SpiritChat</color>",
+                "Made by NegativeKB, updated by TheAmberr",
                 ""
         );
 

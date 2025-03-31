@@ -6,48 +6,111 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Lists;
 import games.negative.alumina.logger.Logs;
 import games.negative.alumina.message.Message;
+import games.negative.spiritchat.SpiritChatPlugin;
+import games.negative.spiritchat.command.CommandColor;
+import games.negative.spiritchat.config.SpiritChatConfig;
+import games.negative.spiritchat.permission.Perm;
 import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
-import me.clip.placeholderapi.libs.kyori.adventure.text.serializer.legacy.LegacyFormat;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
-import org.bukkit.entity.Damageable;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.inventory.ItemFlag;
 import org.jetbrains.annotations.NotNull;
-import games.negative.spiritchat.SpiritChatPlugin;
-import games.negative.spiritchat.config.SpiritChatConfig;
-import games.negative.spiritchat.permission.Perm;
 
-import javax.crypto.spec.PSource;
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class PlayerChatListener implements Listener {
+    private static final Duration CACHE_DURATION = Duration.ofSeconds(10);
+    private static final MiniMessage MINIMESSAGE = MiniMessage.builder()
+            .postProcessor(component -> component.decoration(TextDecoration.ITALIC, false))
+            .build();
+
+    private final CommandColor commandColor;
+
+    public PlayerChatListener(@NotNull CommandColor commandColor) {
+        this.commandColor = Objects.requireNonNull(commandColor, "CommandColor cannot be null");
+    }
 
     @EventHandler
     public void onChat(@NotNull AsyncChatEvent event) {
-        boolean useStaticFormat = format().useStaticFormat();
-
-        event.renderer(useStaticFormat ? new StaticGlobalChatRenderer() : new GroupGlobalChatRenderer());
+        event.renderer(format().useStaticFormat() ? 
+            new StaticGlobalChatRenderer() : 
+            new GroupGlobalChatRenderer());
     }
 
     public static SpiritChatConfig.Format format() {
         return SpiritChatPlugin.config().format();
+    }
+
+    private String formatMessage(@NotNull Player source, @NotNull String messageStr) {
+        Objects.requireNonNull(source, "Player cannot be null");
+        Objects.requireNonNull(messageStr, "Message cannot be null");
+
+        messageStr = handleLegacyFormatting(messageStr);
+        messageStr = handlePermissionBasedFormatting(source, messageStr);
+        return applyPlayerColor(source, messageStr);
+    }
+
+    private String handleLegacyFormatting(String messageStr) {
+        if (messageStr.contains("§")) {
+            Component legacyComponent = LegacyComponentSerializer.legacySection().deserialize(messageStr);
+            messageStr = MINIMESSAGE.serialize(legacyComponent);
+        }
+        return messageStr;
+    }
+
+    private String handlePermissionBasedFormatting(Player source, String messageStr) {
+        if (!source.hasPermission(Perm.CHAT_COLORS)) {
+            messageStr = ChatColor.stripColor(messageStr);
+            return "<white>" + MINIMESSAGE.escapeTags(messageStr) + "</white>";
+        }
+
+        if (!source.hasPermission(Perm.CHAT_MINIMESSAGE)) {
+            messageStr = MINIMESSAGE.escapeTags(messageStr);
+        }
+        return messageStr;
+    }
+
+    private String applyPlayerColor(Player source, String messageStr) {
+        String customColor = SpiritChatPlugin.colors().getCustomColor(source.getUniqueId());
+        if (customColor != null) {
+            if (customColor.startsWith("<gradient:")) {
+                return customColor + messageStr + "</gradient>";
+            }
+            if (customColor.startsWith("#")) {
+                return "<color:" + customColor + ">" + messageStr + "</color>";
+            }
+        }
+
+        String colorTag = SpiritChatPlugin.colors().getColor(source.getUniqueId());
+        if (colorTag != null && !colorTag.isEmpty()) {
+            return colorTag + messageStr + commandColor.getClosingTag(colorTag);
+        }
+
+        return "<white>" + messageStr + "</white>";
     }
 
     private class StaticGlobalChatRenderer implements ChatRenderer {
@@ -60,29 +123,17 @@ public class PlayerChatListener implements Listener {
                 throw new IllegalStateException("Empty global-chat format!");
             }
 
+            String messageStr = PlainTextComponentSerializer.plainText().serialize(message);
+            String formattedMessage = formatMessage(source, messageStr);
+
             Message.Builder builder = new Message(format).create()
                     .replace("%display-name%", display)
                     .replace("%username%", source.getName())
-                    .replace("%health%", Math.round(source.getHealth() / 2) + "");
-
-            if (source.hasPermission(Perm.CHAT_COLORS_MINIMESSAGE)) {
-                TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
-                builder = builder.replace("%message%", MiniMessage.miniMessage().serialize(component));
-            } else {
-                builder = builder.replace("%message%", PlainTextComponentSerializer.plainText().serialize(message));
-            }
-
-            if (source.hasPermission(Perm.CHAT_COLORS_LEGACY)) {
-                TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
-                builder = builder.replace("%message%", LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(component)));
-            } else {
-                builder = builder.replace("%message%", PlainTextComponentSerializer.plainText().serialize(message));
-            }
+                    .replace("%message%", formattedMessage);
 
             ItemStack item = source.getInventory().getItemInMainHand();
             if (format().useItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
                 String itemMiniMessage = createItemName(item.displayName());
-
                 builder = builder.replace(Pattern.quote("{i}"), itemMiniMessage);
                 builder = builder.replace("\\{item\\}", itemMiniMessage);
             }
@@ -93,9 +144,8 @@ public class PlayerChatListener implements Listener {
 
     private class GroupGlobalChatRenderer implements ChatRenderer {
 
-        // Cache results of the highest group (that has a valid format) for 10 seconds
         private static final LoadingCache<UUID, String> CACHE = CacheBuilder.newBuilder()
-                .expireAfterWrite(Duration.ofSeconds(10))
+                .expireAfterWrite(CACHE_DURATION)
                 .build(new CacheLoader<>() {
                     @Override
                     public @NotNull String load(@NotNull UUID key) throws Exception {
@@ -106,7 +156,7 @@ public class PlayerChatListener implements Listener {
                         if (user == null) throw new Exception("Could not find user with UUID %s".formatted(key));
 
                         LinkedList<Group> groups = user.getInheritedGroups(user.getQueryOptions()).stream()
-                                .sorted(Comparator.comparingInt(value -> ((Group) value).getWeight().orElse(0)).reversed())
+                                .sorted(Comparator.<Group, Integer>comparing(g -> g.getWeight().orElse(0)).reversed())
                                 .collect(Collectors.toCollection(Lists::newLinkedList));
 
                         for (Group group : groups) {
@@ -135,15 +185,11 @@ public class PlayerChatListener implements Listener {
 
                 Message.Builder builder = new Message(format).create()
                         .replace("%display-name%", display)
-                        .replace("%username%", source.getName())
-                        .replace("%health%", source.getHealth() + "");
+                        .replace("%username%", source.getName());
 
-                if (source.hasPermission(Perm.CHAT_COLORS_MINIMESSAGE)) {
-                    TextComponent component = LegacyComponentSerializer.legacyAmpersand().deserialize(PlainTextComponentSerializer.plainText().serialize(message));
-                    builder = builder.replace("%message%", MiniMessage.miniMessage().serialize(component));
-                } else {
-                    builder = builder.replace("%message%", PlainTextComponentSerializer.plainText().serialize(message));
-                }
+                String messageStr = PlainTextComponentSerializer.plainText().serialize(message);
+                messageStr = formatMessage(source, messageStr);
+                builder = builder.replace("%message%", messageStr);
 
                 ItemStack item = source.getInventory().getItemInMainHand();
                 if (format().useItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
@@ -166,7 +212,7 @@ public class PlayerChatListener implements Listener {
     }
 
     private String createItemName(@NotNull Component component) {
-        String itemName = MiniMessage.miniMessage().serialize(component);
+        String itemName = MINIMESSAGE.serialize(component);
 
         Integer start = null;
         Integer end = null;

@@ -7,14 +7,16 @@ import games.negative.alumina.config.Configuration;
 import games.negative.alumina.logger.Logs;
 import games.negative.alumina.message.Message;
 import games.negative.alumina.util.Tasks;
-import games.negative.spiritchat.command.CommandChatColor;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import org.bstats.bukkit.Metrics;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 import games.negative.spiritchat.command.CommandSpiritChat;
+import games.negative.spiritchat.command.CommandColor;
 import games.negative.spiritchat.config.SpiritChatConfig;
+import games.negative.spiritchat.config.SpiritChatPlayerColors;
 import games.negative.spiritchat.config.serializer.MessageSerializer;
 import games.negative.spiritchat.listener.PlayerChatListener;
 import games.negative.spiritchat.update.UpdateCheckTask;
@@ -25,37 +27,44 @@ import java.util.Optional;
 public class SpiritChatPlugin extends AluminaPlugin {
 
     private static SpiritChatPlugin instance;
-
-    private Configuration<SpiritChatConfig> config;
-
+    private final Configuration<SpiritChatConfig> config;
+    private final Configuration<SpiritChatPlayerColors> colorsConfig;
     private LuckPerms luckperms;
-
     private Metrics metrics;
 
-    @Override
-    public void load() {
-        instance = this;
-
-        config = Configuration.config(new File(getDataFolder(), "main.yml"), SpiritChatConfig.class, builder -> {
+    public SpiritChatPlugin() {
+        this.config = Configuration.config(new File(getDataFolder(), "main.yml"), SpiritChatConfig.class, builder -> {
             builder.setNameFormatter(NameFormatters.LOWER_KEBAB_CASE);
             builder.inputNulls(true);
             builder.outputNulls(false);
-
             builder.addSerializer(Message.class, new MessageSerializer());
-
             builder.header("""
                     |---------------------------------------------|
                     |                SpiritChat                   |
                     |              Version: %s                 |
                     |---------------------------------------------|
                     """.formatted(getPluginMeta().getVersion()));
-
             builder.footer("""
                     Author: ericlmao
                     """);
-
             return builder;
         });
+
+        this.colorsConfig = Configuration.config(new File(getDataFolder(), "colors.yml"), SpiritChatPlayerColors.class, builder -> {
+            builder.setNameFormatter(NameFormatters.LOWER_KEBAB_CASE);
+            builder.inputNulls(true);
+            builder.outputNulls(false);
+            return builder;
+        });
+    }
+
+    @Override
+    public void load() {
+        instance = this;
+
+        // Initialize configurations
+        this.config.reload();
+        this.colorsConfig.reload();
     }
 
     @Override
@@ -72,19 +81,20 @@ public class SpiritChatPlugin extends AluminaPlugin {
 
         loadLuckPerms();
 
-        registerListener(new PlayerChatListener());
+        CommandColor commandColor = new CommandColor();
+        registerListener(new PlayerChatListener(commandColor));
         registerCommand(new CommandSpiritChat());
-        registerCommand(new CommandChatColor());
+        registerCommand(commandColor);
     }
 
     @Override
     public void disable() {
         if (metrics != null) metrics.shutdown();
-
     }
 
     public void reload() {
         config.reload();
+        colorsConfig.reload();
     }
 
     private void loadLuckPerms() {
@@ -103,7 +113,12 @@ public class SpiritChatPlugin extends AluminaPlugin {
 
     @NotNull
     public Configuration<SpiritChatConfig> configuration() {
-        return config;
+        return Preconditions.checkNotNull(config, "Configuration has not been initialized");
+    }
+
+    @NotNull
+    public Configuration<SpiritChatPlayerColors> getColorConfiguration() {
+        return Preconditions.checkNotNull(colorsConfig, "Color configuration has not been initialized");
     }
 
     @CheckReturnValue
@@ -124,6 +139,11 @@ public class SpiritChatPlugin extends AluminaPlugin {
     }
 
     @NotNull
+    public static SpiritChatPlayerColors colors() {
+        return instance().getColorConfiguration().get();
+    }
+
+    @NotNull
     public static SpiritChatConfig.Messages messages() {
         return config().messages();
     }
@@ -131,5 +151,11 @@ public class SpiritChatPlugin extends AluminaPlugin {
     @CheckReturnValue
     public static Optional<LuckPerms> luckperms() {
         return instance().getLuckPerms();
+    }
+
+    public void playDingSound(Player player) {
+        if (config().playDingSound()) {
+            player.playSound(player.getLocation(), "entity.arrow_hit_player", 1.0f, 1.0f);
+        }
     }
 }

@@ -3,6 +3,7 @@ package games.negative.spiritchat;
 import com.google.common.base.Preconditions;
 import de.exlll.configlib.NameFormatters;
 import games.negative.alumina.AluminaPlugin;
+import games.negative.alumina.command.CommandContext;
 import games.negative.alumina.config.Configuration;
 import games.negative.alumina.logger.Logs;
 import games.negative.alumina.message.Message;
@@ -10,15 +11,25 @@ import games.negative.alumina.util.Tasks;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import org.bstats.bukkit.Metrics;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 import games.negative.spiritchat.command.CommandSpiritChat;
 import games.negative.spiritchat.command.CommandColor;
+import games.negative.spiritchat.command.CommandGlow;
+import games.negative.spiritchat.command.CommandMute;
+import games.negative.spiritchat.command.CommandUnmute;
+import games.negative.spiritchat.command.CommandIgnore;
+import games.negative.spiritchat.command.CommandMessage;
 import games.negative.spiritchat.config.SpiritChatConfig;
 import games.negative.spiritchat.config.SpiritChatPlayerColors;
 import games.negative.spiritchat.config.serializer.MessageSerializer;
 import games.negative.spiritchat.listener.PlayerChatListener;
+import games.negative.spiritchat.data.MuteManager;
+import games.negative.spiritchat.data.IgnoreManager;
 import games.negative.spiritchat.update.UpdateCheckTask;
 
 import java.io.File;
@@ -31,6 +42,8 @@ public class SpiritChatPlugin extends AluminaPlugin {
     private final Configuration<SpiritChatPlayerColors> colorsConfig;
     private LuckPerms luckperms;
     private Metrics metrics;
+    private MuteManager muteManager;
+    private IgnoreManager ignoreManager;
 
     public SpiritChatPlugin() {
         this.config = Configuration.config(new File(getDataFolder(), "main.yml"), SpiritChatConfig.class, builder -> {
@@ -58,6 +71,25 @@ public class SpiritChatPlugin extends AluminaPlugin {
         });
     }
 
+    private void handleGlowOffCommand(CommandContext context) {
+        if (!(context.sender() instanceof Player player)) {
+            context.sender().sendMessage("Only players can use this command!");
+            return;
+        }
+
+        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        Team team = scoreboard.getEntryTeam(player.getName());
+        if (team != null) {
+            team.removeEntry(player.getName());
+        }
+
+        // Save glow status
+        SpiritChatPlugin.instance().getColorConfiguration().get().setGlowColor(player.getUniqueId(), null);
+        SpiritChatPlugin.instance().getColorConfiguration().save();
+
+        SpiritChatPlugin.messages().getGlowDisabled().create().send(context.sender());
+    }
+
     @Override
     public void load() {
         instance = this;
@@ -81,10 +113,19 @@ public class SpiritChatPlugin extends AluminaPlugin {
 
         loadLuckPerms();
 
+        this.muteManager = new MuteManager();
+        this.ignoreManager = new IgnoreManager();
+
         CommandColor commandColor = new CommandColor();
         registerListener(new PlayerChatListener(commandColor));
         registerCommand(new CommandSpiritChat());
         registerCommand(commandColor);
+        registerCommand(new CommandGlow());
+        registerCommand(new CommandMute(muteManager));
+        registerCommand(new CommandUnmute(muteManager));
+        registerCommand(new CommandIgnore(ignoreManager));
+        registerCommand(new CommandMessage());
+        registerCommand(new CommandMessage.CommandReply());
     }
 
     @Override
@@ -153,9 +194,20 @@ public class SpiritChatPlugin extends AluminaPlugin {
         return instance().getLuckPerms();
     }
 
+    @NotNull
+    public MuteManager getMuteManager() {
+        return muteManager;
+    }
+
+    @NotNull
+    public IgnoreManager getIgnoreManager() {
+        return ignoreManager;
+    }
+
     public void playDingSound(Player player) {
         if (config().playDingSound()) {
             player.playSound(player.getLocation(), "entity.arrow_hit_player", 1.0f, 1.0f);
         }
     }
+
 }

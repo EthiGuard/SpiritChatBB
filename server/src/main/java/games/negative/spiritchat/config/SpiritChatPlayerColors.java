@@ -13,13 +13,35 @@ import java.util.regex.Pattern;
 
 @Configuration
 public class SpiritChatPlayerColors {
+    private Map<String, String> colors;
+    public Map<String, String> glowColors;
+    private Map<String, String> customColors;
+
+    public SpiritChatPlayerColors() {
+        this.colors = new HashMap<>();
+        this.glowColors = new HashMap<>();
+        this.customColors = new HashMap<>();
+    }
+
+    public String getGlowColor(UUID uuid) {
+        return glowColors.get(uuid.toString());
+    }
+
+    public void setGlowColor(UUID uuid, String color) {
+        if (color == null) {
+            glowColors.clear();
+        } else {
+            glowColors.put(uuid.toString(), color);
+        }
+    }
+
+    public Map<String, String> getGlowColors() {
+        return glowColors;
+    }
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9A-Fa-f]{6}$|^<gradient:#[0-9A-Fa-f]{6}:#[0-9A-Fa-f]{6}>$");
-    
+
     @Comment("Stores player color preferences using their UUID as key")
     public Map<String, String> playerColors = new HashMap<>();
-    
-    @Comment("Stores custom color codes for players using their UUID as key")
-    public Map<String, String> customColors = new HashMap<>();
 
     public String getColor(@NotNull UUID uuid) {
         Objects.requireNonNull(uuid, "UUID cannot be null");

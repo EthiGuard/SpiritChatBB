@@ -9,6 +9,7 @@ import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -125,79 +126,127 @@ public class SpiritChatConfig {
                 "Format: 'name': '<color format>'",
                 "You can use gradient or regular colors"
         })
-        private Map<String, String> colorPresets = Maps.newHashMap(Map.of(
-                "sunset", "<gradient:#FF512F:#DD2476>",
-                "ocean", "<gradient:#2193b0:#6dd5ed>",
-                "forest", "<gradient:#134E5E:#71B280>",
-                "fire", "<gradient:#FF4B2B:#FF416C>",
-                "rainbow", "<gradient:#ff0000:#ffa500:#ffff00:#008000:#0000ff:#4b0082:#ee82ee>",
-                "gold", "<gradient:#FFD700:#FDB931>",
-                "purple", "<gradient:#8E2DE2:#4A00E0>",
-                "emerald", "<gradient:#348F50:#56B4D3>"
-        ));
+        private Map<String, String> colorPresets = new HashMap<>() {{
+            put("sunset", "<gradient:#FF512F:#DD2476>");
+            put("ocean", "<gradient:#2193b0:#6dd5ed>");
+            put("forest", "<gradient:#134E5E:#71B280>");
+            put("fire", "<gradient:#FF4B2B:#FF416C>");
+            put("rainbow", "<gradient:#ff0000:#ffa500:#ffff00:#008000:#0000ff:#4b0082>");
+            put("gold", "<gradient:#FFD700:#FDB931>");
+            put("purple", "<gradient:#8E2DE2:#4A00E0>");
+            put("emerald", "<gradient:#348F50:#56B4D3>");
+            put("cotton-candy", "<gradient:#E8B4BC:#FAF0E6>");
+            put("sky", "<gradient:#00B4DB:#0083B0>");
+            put("cherry", "<gradient:#EB3349:#F45C43>");
+            put("cosmic", "<gradient:#1F1C2C:#928DAB>");
+            put("autumn", "<gradient:#DAD299:#B0DAB9>");
+            put("valentine", "<gradient:#EF629F:#EECDA3>");
+            put("aurora", "<gradient:#00C9FF:#92FE9D>");
+            put("royal", "<gradient:#141E30:#243B55>");
+            put("pride-rainbow", "<gradient:#FF0018:#FFA52C:#FFFF41:#008018:#0000F9:#86007D>");
+            put("trans", "<gradient:#55CDFC:#F7A8B8:#FFFFFF:#F7A8B8:#55CDFC>");
+            put("bi", "<gradient:#D60270:#9B4F96:#0038A8>");
+            put("pan", "<gradient:#FF1B8D:#FFD700:#00B5FF>");
+            put("ace", "<gradient:#000000:#A4A4A4:#FFFFFF:#800080>");
+            put("nonbinary", "<gradient:#FCF434:#FFFFFF:#9C59D1:#000000>");
+        }};
 
-        public boolean useItemDisplay() {
+        public boolean isUseItemDisplay() {
             return useItemDisplay;
         }
 
-        public boolean useStaticFormat() {
+        public boolean isUseStaticFormat() {
             return useStaticFormat;
         }
 
-        public boolean allowMiniMessage() {
-            return allowMiniMessage;
+        public String getGlobalFormat() {
+            return globalFormat;
         }
 
-        @NotNull
-        public Optional<String> globalFormat() {
-            return Optional.ofNullable(globalFormat);
+        public Optional<String> groupFormat(String groupName) {
+            return Optional.ofNullable(groupFormats.get(groupName));
         }
 
-        @CheckReturnValue
-        public Optional<String> groupFormat(@NotNull String group) {
-            return Optional.ofNullable(groupFormats.get(group));
-        }
-
-        @CheckReturnValue
-        public Optional<String> getPreset(@NotNull String name) {
-            return Optional.ofNullable(colorPresets.get(name.toLowerCase()));
-        }
-
-        @NotNull
         public Map<String, String> getPresets() {
-            return new HashMap<>(colorPresets);
+            return colorPresets;
+        }
+
+        public Optional<String> getPreset(String presetName) {
+            return Optional.ofNullable(colorPresets.get(presetName.toLowerCase()));
         }
     }
 
-    @Getter
     @Configuration
     public static class Messages {
 
-        @Comment({
-                "",
-                "The message sent when someone uses the admin command",
-                "without any arguments or incorrectly."
-        })
-        private Message adminCommandHelp = new Message(
-                "",
-                "<color:#2bbce0>SpiritChat</color>",
-                "<white><click:suggest_command:'/spiritchat reload'>/spiritchat reload</click></white> <gray>- Reload the plugin's configurations</gray>",
-                ""
+        @Comment("Reload message template")
+        public List<String> reloaded = List.of("<green>Spiritchat reloaded.</green>");
+
+        @Comment("Reset message template")
+        public List<String> reset = List.of("<green>Your chat color has been reset.</green>");
+
+        @Comment("Glow color set message template")
+        public List<String> glowColorSet = List.of("<green>Your glow color has been set to %color%.</green>");
+
+        @Comment("Glow disabled message template")
+        public List<String> glowDisabled = List.of("<green>Your glow effect has been disabled.</green>");
+
+        @Comment("Admin command help template")
+        public List<String> adminCommandHelp = List.of("<gray>Usage: /spiritchat reload | reset</gray>");
+
+        @Comment("Glow help message template")
+        public List<String> glowHelp = List.of(
+            "<yellow>Glow Commands:",
+            "<gray>/glow <color> <yellow>- Sets your glow color",
+            "<gray>/glow off <yellow>- Disables your glow effect",
+            "",
+            "<yellow>Available Colors:",
+            "<gray>white, orange, magenta, light_blue, yellow, lime"
         );
 
-        @Comment({
-                "",
-                "The message sent when the plugin's configurations",
-                "are reloaded using the admin command."
-        })
-        private Message reloaded = new Message("<b><color:#2bbce0>SpiritChat</color></b> <dark_gray>></dark_gray> <gray>Reloaded the plugin's configurations!</gray>");
+        @Comment("Private message format when sending")
+        public List<String> privateMessageSent = List.of("<gray>To %receiver%: %message%</gray>");
 
-        @Comment({
-                "",
-                "The message sent when the player's chat color is reset."
-        })
-        private Message reset = new Message("<b><color:#2bbce0>SpiritChat</color></b> <dark_gray>></dark_gray> <gray>Your chat color has been reset to <white>White</white>!</gray>");
+        @Comment("Private message format when receiving")
+        public List<String> privateMessageReceived = List.of("<gray>From %sender%: %message%</gray>");
 
+        @Comment("No one to reply to message")
+        public List<String> noReplyTarget = List.of("<red>You have no one to reply to!</red>");
+
+        public Message getReloaded() {
+            return new Message(String.join("\n", reloaded));
+        }
+
+        public Message getReset() {
+            return new Message(String.join("\n", reset));
+        }
+
+        public Message getGlowColorSet() {
+            return new Message(String.join("\n", glowColorSet));
+        }
+
+        public Message getGlowDisabled() {
+            return new Message(String.join("\n", glowDisabled));
+        }
+
+        public Message getAdminCommandHelp() {
+            return new Message(String.join("\n", adminCommandHelp));
+        }
+
+        public Message getGlowHelp() {
+            return new Message(String.join("\n", glowHelp));
+        }
+
+        public Message getPrivateMessageSent() {
+            return new Message(String.join("\n", privateMessageSent));
+        }
+
+        public Message getPrivateMessageReceived() {
+            return new Message(String.join("\n", privateMessageReceived));
+        }
+
+        public Message getNoReplyTarget() {
+            return new Message(String.join("\n", noReplyTarget));
+        }
     }
-
 }

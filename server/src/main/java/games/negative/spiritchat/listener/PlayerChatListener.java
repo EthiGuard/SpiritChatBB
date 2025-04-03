@@ -14,26 +14,19 @@ import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.inventory.ItemFlag;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
@@ -56,9 +49,38 @@ public class PlayerChatListener implements Listener {
 
     @EventHandler
     public void onChat(@NotNull AsyncChatEvent event) {
-        event.renderer(format().useStaticFormat() ? 
+        Player player = event.getPlayer();
+        
+        // Check if player is muted
+        if (SpiritChatPlugin.instance().getMuteManager().isMuted(player.getUniqueId())) {
+            long remaining = SpiritChatPlugin.instance().getMuteManager().getRemainingTime(player.getUniqueId());
+            if (remaining > 0) {
+                String timeLeft = formatDuration(remaining);
+                player.sendMessage(Component.text("You are muted for " + timeLeft, NamedTextColor.RED));
+            } else {
+                player.sendMessage(Component.text("You are muted!", NamedTextColor.RED));
+            }
+            event.setCancelled(true);
+            return;
+        }
+
+        // Filter out ignored players from receivers
+        event.viewers().removeIf(audience -> {
+            if (!(audience instanceof Player viewer)) return false;
+            return SpiritChatPlugin.instance().getIgnoreManager().isIgnored(viewer.getUniqueId(), player.getUniqueId());
+        });
+
+        event.renderer(format().isUseStaticFormat() ? 
             new StaticGlobalChatRenderer() : 
             new GroupGlobalChatRenderer());
+    }
+
+    private String formatDuration(long millis) {
+        long seconds = millis / 1000;
+        if (seconds < 60) return seconds + " seconds";
+        if (seconds < 3600) return (seconds / 60) + " minutes";
+        if (seconds < 86400) return (seconds / 3600) + " hours";
+        return (seconds / 86400) + " days";
     }
 
     public static SpiritChatConfig.Format format() {
@@ -88,7 +110,7 @@ public class PlayerChatListener implements Listener {
             return "<white>" + MINIMESSAGE.escapeTags(messageStr) + "</white>";
         }
 
-        if (!source.hasPermission(Perm.CHAT_MINIMESSAGE)) {
+        if (!source.hasPermission(Perm.CHAT_FORMAT)) {
             messageStr = MINIMESSAGE.escapeTags(messageStr);
         }
         return messageStr;
@@ -117,7 +139,7 @@ public class PlayerChatListener implements Listener {
 
         @Override
         public @NotNull Component render(@NotNull Player source, @NotNull Component display, @NotNull Component message, @NotNull Audience viewer) {
-            String format = format().globalFormat().orElse(null);
+            String format = format().getGlobalFormat();
             if (format == null || format.isBlank()) {
                 Logs.error("Could not send chat message because 'global-format' is blank or does not exist");
                 throw new IllegalStateException("Empty global-chat format!");
@@ -132,7 +154,7 @@ public class PlayerChatListener implements Listener {
                     .replace("%message%", formattedMessage);
 
             ItemStack item = source.getInventory().getItemInMainHand();
-            if (format().useItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
+            if (format().isUseItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
                 String itemMiniMessage = createItemName(item.displayName());
                 builder = builder.replace(Pattern.quote("{i}"), itemMiniMessage);
                 builder = builder.replace("\\{item\\}", itemMiniMessage);
@@ -192,9 +214,8 @@ public class PlayerChatListener implements Listener {
                 builder = builder.replace("%message%", messageStr);
 
                 ItemStack item = source.getInventory().getItemInMainHand();
-                if (format().useItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
+                if (format().isUseItemDisplay() && source.hasPermission(Perm.CHAT_ITEM) && isChatItemSyntax(message) && !item.getType().isAir()) {
                     String itemMiniMessage = createItemName(item.displayName());
-
                     builder = builder.replace(Pattern.quote("{i}"), itemMiniMessage);
                     builder = builder.replace("\\{item\\}", itemMiniMessage);
                 }

@@ -6,29 +6,21 @@ import games.negative.alumina.command.CommandContext;
 import games.negative.alumina.command.builder.CommandBuilder;
 import games.negative.spiritchat.permission.Perm;
 import games.negative.spiritchat.SpiritChatPlugin;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.*;
 import org.bukkit.event.entity.EntityPickupItemEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
-import games.negative.spiritchat.menu.ColorMenuHolder;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -47,7 +39,8 @@ public class CommandColor extends Command implements Listener {
         "<dark_purple>",
         "<gray>",
         "<dark_gray>",
-        "<white>"
+        "<white>",
+        "<black>"   // Added black
     };
 
     private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9A-Fa-f]{6}$");
@@ -64,6 +57,7 @@ public class CommandColor extends Command implements Listener {
         put("<gray>", "Gray");
         put("<dark_gray>", "Dark Gray");
         put("<white>", "White");
+        put("<black>", "Black");  // Added black
         put("<aqua>", "Aqua"); 
     }};
 
@@ -72,39 +66,27 @@ public class CommandColor extends Command implements Listener {
             .name("color")
             .aliases("colour", "chatcolor", "chatcolour")
             .description("Opens the color selection GUI")
-            .permission(Perm.COLOR_GUI)
+            .permission(Perm.COLOR_CMD)
             .smartTabComplete(true));
 
-        Map<String, ColorConfig> colors = new HashMap<>();
-        colors.put("dark_green", new ColorConfig("dark_green", Perm.COLOR_DARK_GREEN.getName(), "Sets your chat color to dark green", "<dark_green>"));
-        colors.put("dark_red", new ColorConfig("dark_red", Perm.COLOR_DARK_RED.getName(), "Sets your chat color to dark red", "<dark_red>"));
-        colors.put("dark_purple", new ColorConfig("dark_purple", Perm.COLOR_DARK_PURPLE.getName(), "Sets your chat color to dark purple", "<dark_purple>"));
-        colors.put("gold", new ColorConfig("gold", Perm.COLOR_GOLD.getName(), "Sets your chat color to gold", "<gold>"));
-        colors.put("gray", new ColorConfig("gray", Perm.COLOR_GRAY.getName(), "Sets your chat color to gray", "<gray>"));
-        colors.put("dark_gray", new ColorConfig("dark_gray", Perm.COLOR_DARK_GRAY.getName(), "Sets your chat color to dark gray", "<dark_gray>"));
-        colors.put("blue", new ColorConfig("blue", Perm.COLOR_BLUE.getName(), "Sets your chat color to blue", "<blue>"));
-        colors.put("green", new ColorConfig("green", Perm.COLOR_GREEN.getName(), "Sets your chat color to green", "<green>"));
-        colors.put("aqua", new ColorConfig("aqua", Perm.COLOR_AQUA.getName(), "Sets your chat color to aqua", "<aqua>"));
-        colors.put("red", new ColorConfig("red", Perm.COLOR_RED.getName(), "Sets your chat color to red", "<red>"));
-        colors.put("light_purple", new ColorConfig("light_purple", Perm.COLOR_LIGHT_PURPLE.getName(), "Sets your chat color to light purple", "<light_purple>"));
-        colors.put("yellow", new ColorConfig("yellow", Perm.COLOR_YELLOW.getName(), "Sets your chat color to yellow", "<yellow>"));
-
-        // Register all color subcommands
-        colors.forEach((name, config) -> 
+        // Basic colors
+        for (Map.Entry<String, ColorConfig> entry : getColorConfigs().entrySet()) {
+            ColorConfig config = entry.getValue();
             injectSubCommand(CommandBuilder.builder()
                 .name(config.name())
                 .permission(config.permission())
                 .description(config.description()),
-                ctx -> setColorCommand(ctx, config.tag())));
+                ctx -> setColorCommand(ctx, config.tag()));
+        }
 
-        // Add reset command
+        // Reset command
         injectSubCommand(CommandBuilder.builder()
                 .name("reset")
-                .permission(Perm.COLOR_GUI.getName())
+                .permission(Perm.COLOR_CMD.getName())
                 .description("Resets your chat color to white"),
             ctx -> setColorCommand(ctx, "<white>"));
 
-        // Add custom color command
+        // Custom color command
         injectSubCommand(CommandBuilder.builder()
                 .name("custom")
                 .permission(Perm.COLOR_CUSTOM.getName())
@@ -112,13 +94,22 @@ public class CommandColor extends Command implements Listener {
                 .parameter("hex"),
             this::handleCustomColorCommand);
 
-        // Add gradient command
+        // Gradient command
         injectSubCommand(CommandBuilder.builder()
                 .name("gradient")
                 .permission(Perm.COLOR_CUSTOM.getName())
                 .description("Sets a gradient color")
                 .parameter("colors"),
             this::handleGradientColorCommand);
+
+        // Add preset command with proper suggestions via AutoTabComplete
+        injectSubCommand(CommandBuilder.builder()
+                .name("preset")
+                .permission(Perm.COLOR_PRESETS.getName())
+                .description("Use a gradient preset")
+                .parameter("name")
+                .smartTabComplete(true),
+            this::handlePresetCommand);
     }
 
     @Override
@@ -146,7 +137,13 @@ public class CommandColor extends Command implements Listener {
         SpiritChatPlugin.colors().removeCustomColor(player.getUniqueId());
         setPlayerColor(player, colorTag);
         String colorName = getColorName(colorTag);
-        player.sendMessage(MINIMESSAGE.deserialize("<green>Your chat color has been set to " + colorTag + colorName + getClosingTag(colorTag) + "</green>"));
+        player.sendMessage(MINIMESSAGE.deserialize(
+                "<green>Your chat color has been set to " + 
+                colorTag + 
+                colorName + 
+                getClosingTag(colorTag) + 
+                "</green>"
+        ));
         SpiritChatPlugin.instance().playDingSound(player);
     }
 
@@ -210,6 +207,61 @@ public class CommandColor extends Command implements Listener {
         SpiritChatPlugin.instance().playDingSound(player); // Play ding sound
     }
 
+    private void handlePresetCommand(CommandContext context) {
+        if (!(context.sender() instanceof Player player)) {
+            context.sender().sendMessage("Only players can use this command!");
+            return;
+        }
+
+        String[] args = context.args();
+        if (args.length == 0) {
+            // Show available presets grouped by category
+            Map<String, String> presets = SpiritChatPlugin.config().format().getPresets();
+            Component message = Component.text()
+                    .append(Component.text("Available Presets:\n", NamedTextColor.YELLOW))
+                    .append(Component.text("Standard Presets:\n", NamedTextColor.AQUA))
+                    .build();
+
+            // Display standard presets
+            for (Map.Entry<String, String> entry : presets.entrySet()) {
+                if (!entry.getKey().startsWith("pride-")) {
+                    message = message.append(Component.text("• ", NamedTextColor.GRAY))
+                            .append(MINIMESSAGE.deserialize(entry.getValue() + entry.getKey() + "</gradient>"))
+                            .append(Component.text("\n"));
+                }
+            }
+
+            // Display pride presets
+            message = message.append(Component.text("\nPride Presets:\n", NamedTextColor.LIGHT_PURPLE));
+            for (Map.Entry<String, String> entry : presets.entrySet()) {
+                if (entry.getKey().startsWith("pride-") || entry.getKey().matches("(trans|bi|pan|ace|nonbinary|genderfluid)")) {
+                    message = message.append(Component.text("• ", NamedTextColor.GRAY))
+                            .append(MINIMESSAGE.deserialize(entry.getValue() + entry.getKey() + "</gradient>"))
+                            .append(Component.text("\n"));
+                }
+            }
+            
+            player.sendMessage(message);
+            return;
+        }
+
+        String presetName = args[0].toLowerCase();
+        Optional<String> preset = SpiritChatPlugin.config().format().getPreset(presetName);
+        
+        if (preset.isEmpty()) {
+            player.sendMessage(Component.text("Preset not found!", NamedTextColor.RED));
+            return;
+        }
+
+        SpiritChatPlugin.colors().setCustomColor(player.getUniqueId(), preset.get());
+        SpiritChatPlugin.instance().getColorConfiguration().save();
+        
+        player.sendMessage(MINIMESSAGE.deserialize(
+            "<green>Your chat color has been set to " + preset.get() + presetName + "</gradient></green>"
+        ));
+        SpiritChatPlugin.instance().playDingSound(player);
+    }
+
     private void handleCustomColor(Player player, String hex) {
         if (!player.hasPermission(Perm.COLOR_CUSTOM)) {
             player.sendMessage(MINIMESSAGE.deserialize("<red>You don't have permission to use custom colors!</red>"));
@@ -224,53 +276,7 @@ public class CommandColor extends Command implements Listener {
         SpiritChatPlugin.colors().setCustomColor(player.getUniqueId(), hex);
         player.sendMessage(MINIMESSAGE.deserialize("<green>Your chat color has been set to <color:" + hex + ">this color</color></green>"));
     }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof ColorMenuHolder holder)) return;
-
-        event.setCancelled(true);
-        event.setResult(org.bukkit.event.Event.Result.DENY);        
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-
-        ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) return;
-        
-    }
     
-    
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder() instanceof ColorMenuHolder) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST) 
-    public void onInventoryMove(InventoryMoveItemEvent event) {
-        if (event.getDestination().getHolder() instanceof ColorMenuHolder) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onInventoryClose(InventoryCloseEvent event) {
-        if (!(event.getInventory().getHolder() instanceof ColorMenuHolder)) return;
-
-        event.getPlayer().setItemOnCursor(null);
-        
-        if (event.getPlayer() instanceof Player player) {
-            player.getInventory().forEach(item -> {
-                if (item != null && item.hasItemMeta() &&
-                    item.getItemMeta().getPersistentDataContainer()
-                        .has(new NamespacedKey(SpiritChatPlugin.instance(), "ghost-item"), 
-                             PersistentDataType.BYTE)) {
-                    player.getInventory().remove(item);
-                }
-            });
-        }
-    }
 
     @EventHandler
     public void onPlayerPickupItem(EntityPickupItemEvent event) {
@@ -342,6 +348,25 @@ public class CommandColor extends Command implements Listener {
             default:
                 return null;
         }
+    }
+    
+    private Map<String, ColorConfig> getColorConfigs() {
+        Map<String, ColorConfig> colors = new HashMap<>();
+        colors.put("dark_green", new ColorConfig("dark_green", Perm.COLOR_DARK_GREEN.getName(), "Sets your chat color to dark green", "<dark_green>"));
+        colors.put("dark_red", new ColorConfig("dark_red", Perm.COLOR_DARK_RED.getName(), "Sets your chat color to dark red", "<dark_red>"));
+        colors.put("dark_purple", new ColorConfig("dark_purple", Perm.COLOR_DARK_PURPLE.getName(), "Sets your chat color to dark purple", "<dark_purple>"));
+        colors.put("gold", new ColorConfig("gold", Perm.COLOR_GOLD.getName(), "Sets your chat color to gold", "<gold>"));
+        colors.put("gray", new ColorConfig("gray", Perm.COLOR_GRAY.getName(), "Sets your chat color to gray", "<gray>"));
+        colors.put("dark_gray", new ColorConfig("dark_gray", Perm.COLOR_DARK_GRAY.getName(), "Sets your chat color to dark gray", "<dark_gray>"));
+        colors.put("blue", new ColorConfig("blue", Perm.COLOR_BLUE.getName(), "Sets your chat color to blue", "<blue>"));
+        colors.put("green", new ColorConfig("green", Perm.COLOR_GREEN.getName(), "Sets your chat color to green", "<green>"));
+        colors.put("aqua", new ColorConfig("aqua", Perm.COLOR_AQUA.getName(), "Sets your chat color to aqua", "<aqua>"));
+        colors.put("red", new ColorConfig("red", Perm.COLOR_RED.getName(), "Sets your chat color to red", "<red>"));
+        colors.put("light_purple", new ColorConfig("light_purple", Perm.COLOR_LIGHT_PURPLE.getName(), "Sets your chat color to light purple", "<light_purple>"));
+        colors.put("yellow", new ColorConfig("yellow", Perm.COLOR_YELLOW.getName(), "Sets your chat color to yellow", "<yellow>"));
+        colors.put("white", new ColorConfig("white", Perm.COLOR_WHITE.getName(), "Sets your chat color to white", "<white>"));
+        colors.put("black", new ColorConfig("black", Perm.COLOR_BLACK.getName(), "Sets your chat color to black", "<black>"));
+        return colors;
     }
     
     private record ColorConfig(String name, String permission, String description, String tag) {}
